@@ -95,6 +95,21 @@ pub fn run() {
             // Init-script equivalent: re-inject the read-only observer after
             // every full page load (fresh JS context per navigation). The
             // bridge guards against double-install in the same context.
+            //
+            // Accepted gap: there is no document-start injection path for
+            // the config-declared `main` window in Tauri 2.11 —
+            // `initialization_script` exists only on the
+            // `WebviewBuilder`/`WebviewWindowBuilder` builders (verified
+            // against the vendored 2.11.5 sources; `WindowConfig` has no
+            // init-script field), and `PageLoadEvent` offers only
+            // `Started`/`Finished`. A Notification constructed between page
+            // boot and Finished therefore uses the native constructor (a
+            // web toast, never forwarded); unread state is still caught by
+            // the install-time title re-read, so only first-seconds toasts
+            // fall back to web rendering. Closing the gap would require
+            // creating the main window programmatically via
+            // `WebviewWindowBuilder::initialization_script`, i.e. giving up
+            // the config-declared window — not worth the restructuring.
             if webview.label() == "main"
                 && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished)
             {
@@ -105,18 +120,29 @@ pub fn run() {
             }
         })
         .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
+            // Release logging: stdout + log-dir file + webview console, in
+            // all builds (a debug-only plugin would drop every log call in
+            // release). Rotation/file-open behavior is the plugin default.
+            app.handle().plugin(
+                tauri_plugin_log::Builder::new()
+                    .targets([
+                        tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                        tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                            file_name: Some("google-messages".into()),
+                        }),
+                        tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+                    ])
+                    .level(log::LevelFilter::Info)
+                    .build(),
+            )?;
 
             // NOTE: the brief's `add_initialization_script` does not
             // exist on `WebviewWindow` in Tauri 2 — `initialization_script`
-            // is a builder-only API. Injection happens in `.on_page_load`
-            // above (eval on Finished for the main webview) instead.
+            // is a builder-only API (`WebviewBuilder` /
+            // `WebviewWindowBuilder`), with no `WindowConfig` equivalent
+            // for config-declared windows. Injection happens in
+            // `.on_page_load` above (eval on Finished for the main
+            // webview) instead; see the accepted-gap note there.
 
             let show_i = MenuItemBuilder::with_id("show", "Show").build(app)?;
             let quit_i = MenuItemBuilder::with_id("quit", "Quit").build(app)?;

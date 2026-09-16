@@ -3,11 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://messages.google.com; object-src 'none'; base-uri 'self'" />
   <title>Google Messages</title>
-  <style>
-    body { font-family: system-ui, sans-serif; display: grid; place-items: center; height: 100vh; margin: 0; }
-    #offline { display: none; text-align: center; }
-  </style>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <div id="loading"><p>Opening Google Messages…</p></div>
@@ -15,18 +13,6 @@
     <p>You appear to be offline.</p>
     <button id="retry">Retry</button>
   </div>
-  <script>
-    window.__GM_TARGET = "https://messages.google.com/web";
-    function go() {
-        if (navigator.onLine) { window.location.replace(window.__GM_TARGET); }
-      else {
-        document.getElementById("loading").style.display = "none";
-        document.getElementById("offline").style.display = "block";
-      }
-    }
-    document.getElementById("retry").addEventListener("click", go);
-    window.addEventListener("online", go);
-    go();
-  </script>
+  <script src="app.js"></script>
 </body>
 </html>
