@@ -4,7 +4,7 @@
 # Install with: sudo pacman -U tauri-google-messages-bin-*.pkg.tar.zst
 # On new upstream releases: bump pkgver and update sha256sums (makepkg -g).
 pkgname=tauri-google-messages-bin
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="Desktop wrapper for Google Messages for Web (SMS/RCS via QR pairing)"
 arch=('x86_64')
@@ -15,7 +15,7 @@ conflicts=('tauri-google-messages')
 provides=('tauri-google-messages')
 options=('!debug')
 source=("https://github.com/quinnjr/tauri-google-messages/releases/download/v${pkgver}/Google.Messages_${pkgver}_amd64.deb")
-sha256sums=('345b764c5a1841249ae047eacd1f29b62a5dc77d0f2060396894319b1a0f68bb')
+sha256sums=('c729dee03f60cf2835380d552c20cf2d333e31410cd67e3350f8d7f9521aa0ac')
 
 package() {
   # makepkg auto-extracts the .deb (ar) into data.tar.* + control.tar.*
