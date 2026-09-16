@@ -4,6 +4,8 @@ on:
     tags: ['v*']
 jobs:
   release:
+    permissions:
+      contents: write
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
