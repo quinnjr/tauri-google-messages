@@ -27,6 +27,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "category": "Social Networking",
     "targets": ["appimage", "deb", "msi", "nsis", "dmg"],
     "icon": [
@@ -43,7 +44,9 @@
   "plugins": {
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ2RDQ3MTBDRDcyMTA2OUUKUldTZUJpSFhESEhVMXY2emVEZWEwbWxrbXZTa2xTVDBFNjRUMm9ySC9xU1dRWHhwMUFRcjFQdzYK",
-      "endpoints": []
+      "endpoints": [
+        "https://github.com/quinnjr/tauri-google-messages/releases/latest/download/latest.json"
+      ]
     }
   }
 }

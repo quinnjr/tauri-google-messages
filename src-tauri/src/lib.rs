@@ -37,6 +37,55 @@ fn show_main(app: &tauri::AppHandle) {
     }
 }
 
+/// Check for updates from the configured GitHub Releases endpoint,
+/// download + install when one is available, then restart to apply it.
+/// All failures are logged; the check never panics and never touches
+/// frontend code (updater capability permissions intentionally absent).
+async fn check_for_updates(app: tauri::AppHandle) {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let updater = match app.updater() {
+        Ok(u) => u,
+        Err(e) => {
+            log::error!("failed to get updater: {e}");
+            return;
+        }
+    };
+    let update = match updater.check().await {
+        Ok(u) => u,
+        Err(e) => {
+            log::error!("update check failed: {e}");
+            return;
+        }
+    };
+    let Some(update) = update else {
+        log::debug!("up to date");
+        return;
+    };
+    log::info!("update available: {}", update.version);
+    if let Err(e) = update
+        .download_and_install(
+            |chunk_len, content_len| match content_len {
+                Some(total) => log::info!("downloaded {chunk_len} bytes of {total}"),
+                None => log::info!("downloaded {chunk_len} bytes"),
+            },
+            || {
+                log::info!("download finished, installing update");
+            },
+        )
+        .await
+    {
+        log::error!("failed to download and install update: {e}");
+        return;
+    }
+    // `AppHandle::restart` is core Tauri (no new plugin dependency):
+    // on Windows the NSIS/MSI installer relaunches via
+    // `restart_after_install` anyway; on macOS/Linux a relaunch is
+    // required to run the newly installed version.
+    log::info!("update installed; restarting");
+    app.restart();
+}
+
 /// Treat notification content as untrusted: strip control characters and
 /// cap length before building the native toast.
 fn sanitize_notify_text(s: &str, max_chars: usize) -> String {
@@ -145,14 +194,24 @@ pub fn run() {
             // webview) instead; see the accepted-gap note there.
 
             let show_i = MenuItemBuilder::with_id("show", "Show").build(app)?;
+            let check_updates_i =
+                MenuItemBuilder::with_id("check-updates", "Check for Updates").build(app)?;
             let quit_i = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
-            let menu = MenuBuilder::new(app).items(&[&show_i, &quit_i]).build()?;
+            let menu = MenuBuilder::new(app)
+                .items(&[&show_i, &check_updates_i, &quit_i])
+                .build()?;
 
             let mut tray_builder = TrayIconBuilder::with_id("main")
                 .tooltip(APP_TITLE)
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "show" => show_main(app),
+                    "check-updates" => {
+                        let handle = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            check_for_updates(handle).await;
+                        });
+                    }
                     "quit" => {
                         QUIT_REQUESTED.store(true, Ordering::SeqCst);
                         app.exit(0);
