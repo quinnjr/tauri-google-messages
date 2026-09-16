@@ -1,6 +1,6 @@
 [package]
 name = "tauri-google-messages"
-version = "0.1.0"
+version = "0.1.1"
 description = "Tauri wrapper for Google Messages for Web"
 authors = ["Joseph R. Quinn"]
 license = "MIT"
