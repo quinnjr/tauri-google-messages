@@ -1,0 +1,23 @@
+# Maintainer: Joseph R. Quinn
+# Binary repackaging of the official GitHub release .deb.
+# Build with: makepkg (runs in its own directory; srcdir/pkgdir stay out of the repo)
+# Install with: sudo pacman -U tauri-google-messages-bin-*.pkg.tar.zst
+# On new upstream releases: bump pkgver and update sha256sums (makepkg -g).
+pkgname=tauri-google-messages-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Desktop wrapper for Google Messages for Web (SMS/RCS via QR pairing)"
+arch=('x86_64')
+url="https://github.com/quinnjr/tauri-google-messages"
+license=('MIT')
+depends=('webkit2gtk-4.1' 'libayatana-appindicator' 'openssl' 'cairo' 'gtk3' 'librsvg' 'pango' 'glib2' 'hicolor-icon-theme')
+conflicts=('tauri-google-messages')
+provides=('tauri-google-messages')
+options=('!debug')
+source=("https://github.com/quinnjr/tauri-google-messages/releases/download/v${pkgver}/Google.Messages_${pkgver}_amd64.deb")
+sha256sums=('345b764c5a1841249ae047eacd1f29b62a5dc77d0f2060396894319b1a0f68bb')
+
+package() {
+  # makepkg auto-extracts the .deb (ar) into data.tar.* + control.tar.*
+  bsdtar -xf data.tar.* -C "$pkgdir"
+}
