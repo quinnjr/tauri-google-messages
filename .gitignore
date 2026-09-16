@@ -1,2 +1,9 @@
 /target
 .worktrees/
+
+# Node
+node_modules/
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/schemas
