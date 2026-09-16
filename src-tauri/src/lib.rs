@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use tauri::Listener;
 use tauri::{
     menu::{MenuBuilder, MenuItemBuilder},
     tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
@@ -59,6 +60,19 @@ pub fn run() {
                 }
             }
         })
+        .on_page_load(|webview, payload| {
+            // ---- Task 5: bridge injection (BEGIN) ----
+            // Init-script equivalent: re-inject the read-only observer after
+            // every full page load (fresh JS context per navigation). The
+            // bridge guards against double-install in the same context.
+            if webview.label() == "main"
+                && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished)
+            {
+                let bridge = include_str!("../../src/bridge.js");
+                let _ = webview.eval(bridge);
+            }
+            // ---- Task 5: bridge injection (END) ----
+        })
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -67,6 +81,11 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // NOTE (Task 5): the brief's `add_initialization_script` does not
+            // exist on `WebviewWindow` in Tauri 2 — `initialization_script`
+            // is a builder-only API. Injection happens in `.on_page_load`
+            // below (eval on Finished for the main webview) instead.
 
             // ---- Task 4: tray icon + menu (BEGIN) ----
             // Task 5 appends the `gm-notify` event listener after this block.
@@ -99,6 +118,22 @@ pub fn run() {
             }
             let _tray = tray_builder.build(app)?;
             // ---- Task 4: tray icon + menu (END) ----
+
+            // ---- Task 5: gm-notify listener (BEGIN) ----
+            let handle = app.handle().clone();
+            app.listen("gm-notify", move |event| {
+                // Payload: {"title": "...", "body": "..."} — show native toast.
+                if let Ok(p) = serde_json::from_str::<serde_json::Value>(event.payload()) {
+                    let title = p["title"].as_str().unwrap_or("Google Messages");
+                    let body = p["body"].as_str().unwrap_or("");
+                    let _ = tauri_plugin_notification::NotificationExt::notification(&handle)
+                        .builder()
+                        .title(title)
+                        .body(body)
+                        .show();
+                }
+            });
+            // ---- Task 5: gm-notify listener (END) ----
 
             Ok(())
         })
