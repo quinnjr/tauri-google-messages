@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Google Messages</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: grid; place-items: center; height: 100vh; margin: 0; }
+    #offline { display: none; text-align: center; }
+  </style>
+</head>
+<body>
+  <div id="loading"><p>Opening Google Messages…</p></div>
+  <div id="offline">
+    <p>You appear to be offline.</p>
+    <button id="retry">Retry</button>
+  </div>
+  <script>
+    window.__GM_TARGET = "https://messages.google.com/web";
+    function go() {
+      if (navigator.onLine) { window.location.href = window.__GM_TARGET; }
+      else {
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("offline").style.display = "block";
+      }
+    }
+    document.getElementById("retry").addEventListener("click", go);
+    window.addEventListener("online", go);
+    go();
+  </script>
+</body>
+</html>
