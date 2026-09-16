@@ -1,2 +1,13 @@
 /target
 .worktrees/
+
+# Node
+node_modules/
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/schemas
+
+# Updater signing keys (private key lives outside the repo)
+*.key
+*.key.pub

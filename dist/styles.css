@@ -1,0 +1,2 @@
+body { font-family: system-ui, sans-serif; display: grid; place-items: center; height: 100vh; margin: 0; }
+#offline { display: none; text-align: center; }
