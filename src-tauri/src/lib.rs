@@ -11,28 +11,57 @@ use tauri::{
 /// `CloseRequested` is then a real exit instead of a hide-to-tray.
 static QUIT_REQUESTED: AtomicBool = AtomicBool::new(false);
 
+const APP_TITLE: &str = "Google Messages";
+
+fn title_for(count: u32) -> String {
+    if count == 0 {
+        APP_TITLE.to_string()
+    } else {
+        format!("({count}) {APP_TITLE}")
+    }
+}
+
 /// Show and focus the main window. Shared by the tray Show item, tray
 /// left-click, and single-instance second-launch handling.
 fn show_main(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
-        let _ = w.show();
-        let _ = w.set_focus();
+        if let Err(e) = w.unminimize() {
+            log::error!("failed to unminimize main window: {e}");
+        }
+        if let Err(e) = w.show() {
+            log::error!("failed to show main window: {e}");
+        }
+        if let Err(e) = w.set_focus() {
+            log::error!("failed to focus main window: {e}");
+        }
     }
 }
 
+/// Treat notification content as untrusted: strip control characters and
+/// cap length before building the native toast.
+fn sanitize_notify_text(s: &str, max_chars: usize) -> String {
+    s.chars()
+        .filter(|c| !c.is_control())
+        .take(max_chars)
+        .collect()
+}
+
 #[tauri::command]
-fn set_unread(app: tauri::AppHandle, count: u32) {
-    let title = if count == 0 {
-        "Google Messages".to_string()
-    } else {
-        format!("({count}) Google Messages")
-    };
+fn set_unread(app: tauri::AppHandle, count: i64) {
+    // Invoke contract: JS sends a JSON number via `invoke("set_unread",
+    // { count })`; serde deserializes it to i64 here, then we clamp.
+    let count = count.clamp(0, 9999) as u32;
+    let title = title_for(count);
     if let Some(w) = app.get_webview_window("main") {
-        let _ = w.set_title(&title);
+        if let Err(e) = w.set_title(&title) {
+            log::error!("failed to set window title: {e}");
+        }
     }
-    // Tray tooltip reflects unread count; icon badge handled per-platform in Task 5 follow-up.
+    // TODO: per-platform tray icon badge (tooltip/title carry the count until then).
     if let Some(tray) = app.tray_by_id("main") {
-        let _ = tray.set_tooltip(Some(&title));
+        if let Err(e) = tray.set_tooltip(Some(&title)) {
+            log::error!("failed to set tray tooltip: {e}");
+        }
     }
 }
 
@@ -56,12 +85,13 @@ pub fn run() {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" && !QUIT_REQUESTED.load(Ordering::SeqCst) {
                     api.prevent_close();
-                    let _ = window.hide();
+                    if let Err(e) = window.hide() {
+                        log::error!("failed to hide main window: {e}");
+                    }
                 }
             }
         })
         .on_page_load(|webview, payload| {
-            // ---- Task 5: bridge injection (BEGIN) ----
             // Init-script equivalent: re-inject the read-only observer after
             // every full page load (fresh JS context per navigation). The
             // bridge guards against double-install in the same context.
@@ -69,9 +99,10 @@ pub fn run() {
                 && matches!(payload.event(), tauri::webview::PageLoadEvent::Finished)
             {
                 let bridge = include_str!("../../src/bridge.js");
-                let _ = webview.eval(bridge);
+                if let Err(e) = webview.eval(bridge) {
+                    log::error!("failed to inject gm bridge: {e}");
+                }
             }
-            // ---- Task 5: bridge injection (END) ----
         })
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -82,19 +113,17 @@ pub fn run() {
                 )?;
             }
 
-            // NOTE (Task 5): the brief's `add_initialization_script` does not
+            // NOTE: the brief's `add_initialization_script` does not
             // exist on `WebviewWindow` in Tauri 2 — `initialization_script`
             // is a builder-only API. Injection happens in `.on_page_load`
-            // below (eval on Finished for the main webview) instead.
+            // above (eval on Finished for the main webview) instead.
 
-            // ---- Task 4: tray icon + menu (BEGIN) ----
-            // Task 5 appends the `gm-notify` event listener after this block.
             let show_i = MenuItemBuilder::with_id("show", "Show").build(app)?;
             let quit_i = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
             let menu = MenuBuilder::new(app).items(&[&show_i, &quit_i]).build()?;
 
             let mut tray_builder = TrayIconBuilder::with_id("main")
-                .tooltip("Google Messages")
+                .tooltip(APP_TITLE)
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "show" => show_main(app),
@@ -115,28 +144,82 @@ pub fn run() {
                 });
             if let Some(icon) = app.default_window_icon().cloned() {
                 tray_builder = tray_builder.icon(icon);
+            } else {
+                log::debug!("no default window icon; tray built without an icon");
             }
             let _tray = tray_builder.build(app)?;
-            // ---- Task 4: tray icon + menu (END) ----
 
-            // ---- Task 5: gm-notify listener (BEGIN) ----
             let handle = app.handle().clone();
             app.listen("gm-notify", move |event| {
                 // Payload: {"title": "...", "body": "..."} — show native toast.
-                if let Ok(p) = serde_json::from_str::<serde_json::Value>(event.payload()) {
-                    let title = p["title"].as_str().unwrap_or("Google Messages");
-                    let body = p["body"].as_str().unwrap_or("");
-                    let _ = tauri_plugin_notification::NotificationExt::notification(&handle)
-                        .builder()
-                        .title(title)
-                        .body(body)
-                        .show();
+                match serde_json::from_str::<serde_json::Value>(event.payload()) {
+                    Ok(p) => {
+                        let title = p["title"].as_str().unwrap_or(APP_TITLE);
+                        let body = p["body"].as_str().unwrap_or("");
+                        let title = sanitize_notify_text(title, 100);
+                        let body = sanitize_notify_text(body, 200);
+                        let title = if title.is_empty() {
+                            APP_TITLE.to_string()
+                        } else {
+                            title
+                        };
+                        if let Err(e) =
+                            tauri_plugin_notification::NotificationExt::notification(&handle)
+                                .builder()
+                                .title(title)
+                                .body(body)
+                                .show()
+                        {
+                            log::error!("failed to show notification: {e}");
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("ignoring malformed gm-notify payload: {e}");
+                    }
                 }
             });
-            // ---- Task 5: gm-notify listener (END) ----
+
+            let _online_id = app.listen("gm-online", |event| {
+                log::debug!("gm-online: {}", event.payload());
+            });
 
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zero_count_yields_plain_title() {
+        assert_eq!(title_for(0), "Google Messages");
+    }
+
+    #[test]
+    fn one_count_is_prefixed() {
+        assert_eq!(title_for(1), "(1) Google Messages");
+    }
+
+    #[test]
+    fn large_count_is_prefixed() {
+        assert_eq!(title_for(42), "(42) Google Messages");
+    }
+
+    #[test]
+    fn sanitize_strips_control_characters() {
+        assert_eq!(sanitize_notify_text("a\x00b\x07c\u{7f}d", 100), "abcd");
+    }
+
+    #[test]
+    fn sanitize_caps_length() {
+        assert_eq!(sanitize_notify_text("abcdef", 3), "abc");
+    }
+
+    #[test]
+    fn sanitize_strips_newlines_too() {
+        assert_eq!(sanitize_notify_text("Hi\nthere", 200), "Hithere");
+    }
 }

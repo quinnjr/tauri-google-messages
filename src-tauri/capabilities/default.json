@@ -13,11 +13,7 @@
     "core:window:allow-set-focus",
     "core:window:allow-show",
     "core:window:allow-hide",
-    "core:tray:default",
-    "notification:default",
-    "autostart:default",
-    "window-state:default",
-    "updater:default"
+    "core:window:allow-unminimize"
   ],
   "remote": {
     "urls": ["https://messages.google.com/*"]

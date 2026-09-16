@@ -1,10 +1,9 @@
 [package]
-name = "app"
+name = "tauri-google-messages"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+description = "Tauri wrapper for Google Messages for Web"
+authors = ["Joseph R. Quinn"]
+license = "MIT"
 edition = "2021"
 rust-version = "1.77.2"
 

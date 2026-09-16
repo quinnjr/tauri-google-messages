@@ -1,4 +1,4 @@
-// Runs in the Messages webview via initializationScript. Read-only observer:
+// Runs in the Messages webview via on_page_load eval. Read-only observer:
 // never sends messages, never stores content.
 (function () {
   // Idempotency guard: eval-based injection re-runs per page load, and must
@@ -11,7 +11,9 @@
       if (window.__TAURI__?.core?.invoke) {
         window.__TAURI__.core.invoke("set_unread", { count: n });
       }
-    } catch (_) {}
+    } catch (e) {
+      console.warn("[gm-bridge] set_unread failed", e);
+    }
   }
 
   function readUnreadFromTitle() {
@@ -39,6 +41,8 @@
     } catch (_) {}
     return new OrigNotification(title, opts);
   };
+  window.Notification.prototype = OrigNotification.prototype;
+  Object.setPrototypeOf(window.Notification, OrigNotification);
   window.Notification.permission = "granted";
   window.Notification.requestPermission = async () => "granted";
 

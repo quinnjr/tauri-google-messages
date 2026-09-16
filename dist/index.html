@@ -18,7 +18,7 @@
   <script>
     window.__GM_TARGET = "https://messages.google.com/web";
     function go() {
-      if (navigator.onLine) { window.location.href = window.__GM_TARGET; }
+        if (navigator.onLine) { window.location.replace(window.__GM_TARGET); }
       else {
         document.getElementById("loading").style.display = "none";
         document.getElementById("offline").style.display = "block";
