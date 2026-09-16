@@ -18,6 +18,8 @@ jobs:
         run: |
           npm test
           cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0.0" --locked
       - name: Build Tauri bundles (signed for updater)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
